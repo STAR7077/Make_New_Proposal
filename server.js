@@ -14,6 +14,24 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
+const DEFAULT_PROPOSALS = [
+  {
+    name: 'Question Proposal',
+    content:
+      "Hello,\n\nThank you for the opportunity. I’ve carefully reviewed your project — this is not just an AI integration, but the creation of a complete intelligent communication agent capable of handling calls, emails, and lead qualification with precision and natural interaction.\n\nBefore we begin, a few quick clarifications:\n●  Do you already use any telephony platform (Twilio, Asterisk, Dialogflow CX, etc.)?\n● Should the AI handle both voice and text interactions autonomously, or in a hybrid (AI + human handoff) model?\n● Do you have an existing CRM or sales pipeline system to integrate with?\n\nWith deep experience in AI agents, NLP, speech processing, and system integrations (voice + email + CRM), I can design and build a multi-channel AI assistant that automates communication, optimizes sales funnels, and ensures seamless collaboration between AI and human teams.\n\nI focus on delivering robust, scalable, and context-aware AI systems with voice synthesis, speech-to-text, intent recognition, and workflow automation — all tailored to your operational goals.\n\nI can start immediately and deliver an MVP that handles calls, email organization, and lead qualification — ready for real-world use and scaling."
+  },
+  {
+    name: '2 Way suggestion Proposal',
+    content:
+      "Hi there,\nI just read all the requirements.\nHowever, I have carefully read your project description and submitted my bid after thorough research and preparation.\nThis is my proposal for project:\n\nThe objective is to build a professional landing page and integrated blog for your B2B IT consulting firm. The landing page will be designed to highlight services clearly, with a modern responsive layout optimized for lead conversion. The blog will be implemented with a CMS like WordPress to allow easy publishing of articles, industry updates, and news.\n\nI suggest two possible approaches:\nOption A: Develop the entire site on WordPress, including the landing page and blog. This ensures full CMS control, simple content updates, and access to powerful plugins for SEO and performance optimization.\nOption B: Create a custom-coded landing page (HTML, CSS, JavaScript, PHP) optimized for speed and conversions, and integrate it with a separate WordPress blog. This option offers maximum performance for the landing page while still giving you easy blog management.\n\nBoth approaches will ensure a modern, responsive design, SEO optimization, and smooth user experience aimed at generating leads and improving your online presence.\n\nLet's discuss in detail through chat.\n\nDeadline: 3 to 4 weeks\nBudget: 1,500 to 2,500 USD depending on chosen option and customization level"
+  },
+  {
+    name: 'Robert - DSAT Homework Coach with OpenAI & Airtable Integration',
+    content:
+      "Hello,\n\nAs I am very strong in OpenAI API (Custom GPT Actions), Airtable API, and backend development with Node.js/Express and Python/FastAPI, I can confidently build your DSAT Homework Coach to enforce the step-by-step workflow and log all student activity (steps, timing, mastery) into Airtable for Softr dashboards.\n\nPlease check some of my related projects:\nhttps://github.com/CloudDev777/AI-Powered-Data-Enrichment-System\nhttps://github.com/CloudDev777/Serpapi_to_Airtable_Automation\nhttps://github.com/CloudDev777/AI-Content-Generation-Platform\n\nWith 7+ years of experience, I’ve delivered GPT-integrated education tools and data pipelines, including strict multi-step interactions, Airtable-first schemas, and lightweight backends that expose clean endpoints for client apps. I’ve implemented mastery tracking, spaced repetition, and adaptive difficulty tied to tagged content.\n\nI also focus on workflow architecture, validation gates at every step, exception handling with retries, structured logging/audit trails, idempotent updates, and rate limiting to ensure stability and scalability.\n\nI’m confident I can deliver an MVP in 1–2 weeks: a sandbox Airtable base (Items, Students, StudentProgress, Submissions), two endpoints (get_next_question, grade_step), and a connected Custom GPT Action that strictly enforces the paraphrase → prediction → elimination → final sequence, plus clear documentation for your team to maintain and merge into the main LMS.\n\nI’m available full-time (40+ hours/week) and can start immediately. Looking forward to hearing from you soon.\nBest regards,\nRobert"
+  }
+];
+
 const __dirnameSafe = __dirname;
 const BASE_DIR = __dirnameSafe;
 const FRONTEND_DIR = path.join(BASE_DIR, 'frontend');
@@ -25,10 +43,14 @@ app.use(express.urlencoded({ extended: true }));
 async function loadProposals() {
   try {
     const data = await fs.readFile(PROPOSAL_STORE, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed) && parsed.length >= 3) {
+      return parsed;
+    }
+    return [...DEFAULT_PROPOSALS];
   } catch (err) {
     if (err.code === 'ENOENT') {
-      return [];
+      return [...DEFAULT_PROPOSALS];
     }
     throw err;
   }
