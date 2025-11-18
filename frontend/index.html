@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Proposal Generator</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container" style="max-width: 1500px;">
+    <h2>AI Proposal Generator</h2>
+    <section id="samples">
+      <h3>Sample Proposals</h3>
+      <ul id="proposal-list"></ul>
+    </section>
+    <section id="job-section">
+      <h3>Generate 3 Proposals (Top 3 Styles with DeepSeek)</h3>
+      <textarea id="job-desc" rows="5" placeholder="Paste job description here..."></textarea>
+      <button id="generate-btn">Generate</button>
+      <div id="error" style="display:none;" class="error"></div>
+    </section>
+    <div id="loading" style="display:none;">Generating proposals...</div>
+    <section id="results" style="display:none;">
+      <h3>Generated Proposals</h3>
+      <div class="results-row">
+        <div class="result-card">
+          <b>DeepSeek (Sample A):</b>
+          <pre id="deepseek-a"></pre>
+        </div>
+        <div class="result-card">
+          <b>DeepSeek (Sample B):</b>
+          <pre id="deepseek-b"></pre>
+        </div>
+        <div class="result-card">
+          <b>DeepSeek (Sample C):</b>
+          <pre id="deepseek-c"></pre>
+        </div>
+      </div>
+    </section>
+  </div>
+<script>
+// Same-origin calls (backend served by FastAPI locally)
+function api(path) { return path; }
+
+async function fetchProposals() {
+  try {
+    const res = await fetch(api('/proposals'));
+    if(!res.ok) throw new Error('Failed to load proposals: ' + res.status);
+    const data = await res.json();
+    const ul = document.getElementById('proposal-list');
+    ul.innerHTML = '';
+    data.forEach(p => {
+      const li = document.createElement('li');
+      li.textContent = p.name;
+      ul.appendChild(li);
+    });
+  } catch (e) {
+    console.error(e);
+    document.getElementById('proposal-list').innerHTML = '<li>Could not load proposals.</li>';
+  }
+}
+async function generate() {
+  const errorBox = document.getElementById('error');
+  errorBox.style.display = 'none';
+  errorBox.textContent = '';
+  const job = document.getElementById('job-desc').value;
+  if(!job.trim()) { errorBox.textContent = 'Please enter a job description.'; errorBox.style.display='block'; return; }
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  try {
+    const response = await fetch(api('/generate'), {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({job_description: job})
+    });
+    const text = await response.text();
+    if(!response.ok) {
+      throw new Error('Request failed: ' + response.status + ' ' + text);
+    }
+    let result;
+    try { result = JSON.parse(text); } catch(parseErr) {
+      throw new Error('Invalid JSON response: ' + text.slice(0, 200));
+    }
+    const r = result.results || [];
+    const findText = (prov, idx) => {
+      const item = r.find(x => x.provider===prov && x.sample_index===idx);
+      return item ? (item.text||'') : '';
+    };
+    document.getElementById('deepseek-a').textContent = findText('deepseek', 0);
+    document.getElementById('deepseek-b').textContent = findText('deepseek', 1);
+    document.getElementById('deepseek-c').textContent = findText('deepseek', 2);
+
+    document.getElementById('results').style.display = 'block';
+  } catch (e) {
+    console.error(e);
+    errorBox.textContent = e.message;
+    errorBox.style.display = 'block';
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+document.getElementById('generate-btn').onclick = generate;
+window.onload = fetchProposals;
+</script>
+</body>
+</html>
