@@ -21,19 +21,44 @@
     </section>
     <div id="loading" style="display:none;">Generating proposals...</div>
     <section id="results" style="display:none;">
+      <section id="analysis-section" style="margin-bottom: 32px;">
+        <h3>Project Analysis</h3>
+        <div class="analysis-card">
+          <div style="margin-bottom: 16px;">
+            <b>Client Country:</b> <span id="analysis-country"></span>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <b>Legitimacy Assessment:</b>
+            <div id="analysis-legitimacy" style="margin-top: 8px; padding: 12px; background: #f8f9fa; border-radius: 4px;"></div>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <b>Pricing Analysis:</b>
+            <div id="analysis-pricing" style="margin-top: 8px; padding: 12px; background: #f8f9fa; border-radius: 4px;"></div>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <b>Time Estimate:</b> <span id="analysis-time"></span>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <b>Estimated Cost (Client Country Perspective):</b> <span id="analysis-price-client"></span>
+          </div>
+          <div>
+            <b>Estimated Cost ($20/hour):</b> <span id="analysis-price-20"></span>
+          </div>
+        </div>
+      </section>
       <h3>Generated Proposals</h3>
+      <div class="result-card" style="margin-bottom: 24px; border: 2px solid #4f7cac;">
+        <b style="color: #4f7cac; font-size: 1.1em;">Best Proposal</b>
+        <pre id="best-proposal"></pre>
+      </div>
       <div class="results-row">
         <div class="result-card">
-          <b>DeepSeek (Sample A):</b>
-          <pre id="deepseek-a"></pre>
+          <b>Proposal 2:</b>
+          <pre id="proposal-2"></pre>
         </div>
         <div class="result-card">
-          <b>DeepSeek (Sample B):</b>
-          <pre id="deepseek-b"></pre>
-        </div>
-        <div class="result-card">
-          <b>DeepSeek (Sample C):</b>
-          <pre id="deepseek-c"></pre>
+          <b>Proposal 3:</b>
+          <pre id="proposal-3"></pre>
         </div>
       </div>
     </section>
@@ -81,14 +106,24 @@ async function generate() {
     try { result = JSON.parse(text); } catch(parseErr) {
       throw new Error('Invalid JSON response: ' + text.slice(0, 200));
     }
-    const r = result.results || [];
-    const findText = (prov, idx) => {
-      const item = r.find(x => x.provider===prov && x.sample_index===idx);
-      return item ? (item.text||'') : '';
-    };
-    document.getElementById('deepseek-a').textContent = findText('deepseek', 0);
-    document.getElementById('deepseek-b').textContent = findText('deepseek', 1);
-    document.getElementById('deepseek-c').textContent = findText('deepseek', 2);
+    
+    // Display analysis section
+    const analysis = result.analysis || {};
+    document.getElementById('analysis-country').textContent = analysis.country || 'Unknown';
+    document.getElementById('analysis-legitimacy').textContent = analysis.legitimacy || 'Not available';
+    document.getElementById('analysis-pricing').textContent = analysis.pricing_analysis || 'Not available';
+    document.getElementById('analysis-time').textContent = analysis.time_estimate || 'Not available';
+    document.getElementById('analysis-price-client').textContent = analysis.price_client_country || 'Not available';
+    document.getElementById('analysis-price-20').textContent = analysis.price_20_per_hour || 'Not available';
+    
+    // Display best proposal
+    const bestProposal = result.best_proposal || {};
+    document.getElementById('best-proposal').textContent = bestProposal.text || 'Not available';
+    
+    // Display other proposals
+    const otherProposals = result.other_proposals || [];
+    document.getElementById('proposal-2').textContent = otherProposals[0]?.text || 'Not available';
+    document.getElementById('proposal-3').textContent = otherProposals[1]?.text || 'Not available';
 
     document.getElementById('results').style.display = 'block';
   } catch (e) {

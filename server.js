@@ -100,6 +100,117 @@ function aiSelectTopThree(jobDesc, proposals) {
   return ranked.slice(0, 3).map((item) => item.proposal);
 }
 
+function extractCountry(jobDesc) {
+  // Try to extract country from the end of the job description
+  const lines = jobDesc.trim().split('\n');
+  const lastLine = lines[lines.length - 1]?.trim() || '';
+  // Common country patterns
+  const countryPatterns = [
+    /Country:\s*([A-Za-z\s]+)/i,
+    /Location:\s*([A-Za-z\s]+)/i,
+    /Client\s+Country:\s*([A-Za-z\s]+)/i,
+    /Country\s+of\s+Client:\s*([A-Za-z\s]+)/i,
+    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)$/ // Standalone country name at end
+  ];
+  
+  for (const pattern of countryPatterns) {
+    const match = lastLine.match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  // If no pattern matches, check if last line looks like a country name
+  if (lastLine.length < 50 && /^[A-Z][a-z]+/.test(lastLine)) {
+    return lastLine;
+  }
+  
+  return 'Unknown';
+}
+
+async function analyzeProject(jobDesc, country) {
+  if (!DEEPSEEK_API_KEY) {
+    return {
+      legitimacy: 'Unable to analyze (API key not set)',
+      pricing_analysis: 'Unable to analyze (API key not set)',
+      time_estimate: 'Unable to estimate',
+      price_client_country: 'Unable to estimate',
+      price_20_per_hour: 'Unable to estimate'
+    };
+  }
+
+  const prompt = `You are a senior expert developer with extensive experience for this project type. Analyze the following project description and provide a professional assessment.
+
+JOB DESCRIPTION:
+---
+${jobDesc}
+---
+
+CLIENT COUNTRY: ${country}
+
+Please provide a comprehensive analysis in the following JSON format:
+{
+  "legitimacy": "Brief assessment of whether this project appears legitimate or potentially fraudulent based on typical red flags (unrealistic budget, vague requirements, suspicious payment terms, etc.). Consider the client's country context.",
+  "pricing_analysis": "Analysis of whether the project budget (if mentioned) is realistic from the client's country perspective. Consider average developer rates and project costs in that country.",
+  "time_estimate": "Estimated time to complete this project as a senior expert developer (e.g., '2-3 weeks', '1-2 months'). Be realistic and consider all aspects mentioned.",
+  "price_client_country": "Estimated project cost from the client's country perspective (consider local market rates for senior developers in ${country}). Format as a range (e.g., '$1,500 - $3,000' or '€2,000 - €4,000').",
+  "price_20_per_hour": "Estimated project cost at $20/hour rate. Calculate based on the time estimate. Format as a range (e.g., '$800 - $1,200')."
+}
+
+Output ONLY valid JSON, no additional text.`;
+
+  const body = {
+    model: DEEPSEEK_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a senior expert developer providing professional project analysis. Always respond with valid JSON only.'
+      },
+      { role: 'user', content: prompt }
+    ],
+    max_tokens: 800,
+    temperature: 0.3
+  };
+
+  try {
+    const response = await axios.post(DEEPSEEK_API_URL, body, {
+      headers: {
+        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+    const choices = response.data?.choices ?? [];
+    const message = choices[0]?.message?.content || '{}';
+    
+    try {
+      // Try to extract JSON from response (might have markdown code blocks)
+      let jsonStr = message.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      }
+      return JSON.parse(jsonStr);
+    } catch (parseErr) {
+      // Fallback if JSON parsing fails
+      return {
+        legitimacy: message.substring(0, 200),
+        pricing_analysis: 'Analysis unavailable',
+        time_estimate: 'Unable to estimate',
+        price_client_country: 'Unable to estimate',
+        price_20_per_hour: 'Unable to estimate'
+      };
+    }
+  } catch (error) {
+    return {
+      legitimacy: `Analysis failed: ${error.message}`,
+      pricing_analysis: 'Analysis unavailable',
+      time_estimate: 'Unable to estimate',
+      price_client_country: 'Unable to estimate',
+      price_20_per_hour: 'Unable to estimate'
+    };
+  }
+}
+
 async function generateWithDeepseek(jobDesc, sample) {
   if (!DEEPSEEK_API_KEY) {
     return '(DeepSeek API key not set; returning placeholder text)';
@@ -208,20 +319,60 @@ app.post('/generate', async (req, res, next) => {
     if (proposals.length < 3) {
       return res.status(400).json({ detail: 'At least 3 sample proposals are required.' });
     }
+
+    // Extract country and analyze project
+    const country = extractCountry(jobDescription);
+    const analysis = await analyzeProject(jobDescription, country);
+
+    // Get top three proposals
     const topThree = aiSelectTopThree(jobDescription, proposals);
     const [sampleA, sampleB, sampleC] = topThree;
+
+    // Generate all three proposals
     const [deepseekA, deepseekB, deepseekC] = await Promise.all([
       generateWithDeepseek(jobDescription, sampleA),
       generateWithDeepseek(jobDescription, sampleB),
       generateWithDeepseek(jobDescription, sampleC)
     ]);
+
+    // Rank proposals to find the best one (using similarity to job description)
+    const proposalsWithScores = [
+      { text: deepseekA, sample: sampleA, index: 0 },
+      { text: deepseekB, sample: sampleB, index: 1 },
+      { text: deepseekC, sample: sampleC, index: 2 }
+    ].map((item) => {
+      const tfidf = new natural.TfIdf();
+      tfidf.addDocument(jobDescription);
+      tfidf.addDocument(item.text);
+      const jobVector = listTermsAsVector(tfidf, 0);
+      const propVector = listTermsAsVector(tfidf, 1);
+      const score = cosineSimilarity(jobVector, propVector);
+      return { ...item, score };
+    });
+
+    // Sort by score (highest first) - best proposal is first
+    proposalsWithScores.sort((a, b) => b.score - a.score);
+    const bestProposal = proposalsWithScores[0];
+    const otherProposals = proposalsWithScores.slice(1);
+
     res.json({
-      matched_samples: [sampleA, sampleB, sampleC],
-      results: [
-        { provider: 'deepseek', sample_index: 0, text: deepseekA },
-        { provider: 'deepseek', sample_index: 1, text: deepseekB },
-        { provider: 'deepseek', sample_index: 2, text: deepseekC }
-      ]
+      analysis: {
+        country,
+        ...analysis
+      },
+      best_proposal: {
+        provider: 'deepseek',
+        sample_index: bestProposal.index,
+        text: bestProposal.text,
+        sample_name: bestProposal.sample.name
+      },
+      other_proposals: otherProposals.map((item) => ({
+        provider: 'deepseek',
+        sample_index: item.index,
+        text: item.text,
+        sample_name: item.sample.name
+      })),
+      matched_samples: [sampleA, sampleB, sampleC]
     });
   } catch (err) {
     next(err);

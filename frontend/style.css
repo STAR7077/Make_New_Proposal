@@ -42,5 +42,17 @@ pre {
   flex:1;
   min-width:200px;
 }
+.analysis-card {
+  background: #f8f9fa;
+  border: 1px solid #e6e9ef;
+  border-radius: 8px;
+  padding: 20px;
+  line-height: 1.6;
+}
+.analysis-card b {
+  color: #2e4057;
+  display: block;
+  margin-bottom: 4px;
+}
 #error { color:#8b0000; background:#fff2f2; border:1px solid #f2d3d3; padding:8px; border-radius:4px; margin-top:8px; }
 #loading { color: #7d6000; font-style:italic; font-weight:500; }
