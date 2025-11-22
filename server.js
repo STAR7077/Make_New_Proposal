@@ -159,10 +159,10 @@ CLIENT COUNTRY: ${country}
 Please provide a comprehensive analysis in the following JSON format:
 {
   "legitimacy": "Brief assessment of whether this project appears legitimate or potentially fraudulent based on typical red flags (unrealistic budget, vague requirements, suspicious payment terms, etc.). Consider the client's country context.",
-  "pricing_analysis": "Analysis of whether the project budget (if mentioned) is realistic from the client's country perspective. Consider average developer rates and project costs in that country.",
+  "pricing_analysis": "Analysis of whether the project budget (if mentioned) is realistic from the client's country perspective. Consider average developer rates and project costs in that country, but convert and present all amounts in USD.",
   "time_estimate": "Estimated time to complete this project as a senior expert developer (e.g., '2-3 weeks', '1-2 months'). Be realistic and consider all aspects mentioned.",
-  "price_client_country": "Estimated project cost from the client's country perspective (consider local market rates for senior developers in ${country}). Format as a range (e.g., '$1,500 - $3,000' or '€2,000 - €4,000').",
-  "price_20_per_hour": "Estimated project cost at $20/hour rate. Calculate based on the time estimate. Format as a range (e.g., '$800 - $1,200')."
+  "price_client_country": "Estimated project cost converted to USD from the client's country perspective (consider local market rates for senior developers in ${country}, then convert to USD). Format as USD range (e.g., '$1,500 - $3,000 USD'). Always use USD currency.",
+  "price_20_per_hour": "Estimated project cost at $20/hour rate in USD. Calculate based on the time estimate. Format as USD range (e.g., '$800 - $1,200 USD'). Always use USD currency."
 }
 
 Output ONLY valid JSON, no additional text.`;
@@ -172,7 +172,7 @@ Output ONLY valid JSON, no additional text.`;
     messages: [
       {
         role: 'system',
-        content: 'You are a senior expert developer providing professional project analysis. Always respond with valid JSON only.'
+        content: 'You are a senior expert developer providing professional project analysis. Always respond with valid JSON only. All monetary amounts must be in USD (United States Dollars) format, regardless of the client\'s country.'
       },
       { role: 'user', content: prompt }
     ],
