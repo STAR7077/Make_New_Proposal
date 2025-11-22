@@ -101,27 +101,35 @@ function aiSelectTopThree(jobDesc, proposals) {
 }
 
 function extractCountry(jobDesc) {
-  // Try to extract country from the end of the job description
-  const lines = jobDesc.trim().split('\n');
-  const lastLine = lines[lines.length - 1]?.trim() || '';
-  // Common country patterns
+  if (!jobDesc || !jobDesc.trim()) {
+    return 'Unknown';
+  }
+  
+  // Try to extract country from anywhere in the job description
   const countryPatterns = [
     /Country:\s*([A-Za-z\s]+)/i,
     /Location:\s*([A-Za-z\s]+)/i,
     /Client\s+Country:\s*([A-Za-z\s]+)/i,
-    /Country\s+of\s+Client:\s*([A-Za-z\s]+)/i,
-    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)$/ // Standalone country name at end
+    /Country\s+of\s+Client:\s*([A-Za-z\s]+)/i
   ];
   
+  // First, try patterns anywhere in the text
   for (const pattern of countryPatterns) {
-    const match = lastLine.match(pattern);
-    if (match) {
-      return match[1].trim();
+    const match = jobDesc.match(pattern);
+    if (match && match[1]) {
+      const country = match[1].trim();
+      if (country.length > 0 && country.length < 50) {
+        return country;
+      }
     }
   }
   
-  // If no pattern matches, check if last line looks like a country name
-  if (lastLine.length < 50 && /^[A-Z][a-z]+/.test(lastLine)) {
+  // If no pattern matches, check the last line
+  const lines = jobDesc.trim().split('\n');
+  const lastLine = lines[lines.length - 1]?.trim() || '';
+  
+  // Check if last line looks like a country name (capitalized, reasonable length)
+  if (lastLine.length > 0 && lastLine.length < 50 && /^[A-Z][a-z]+/.test(lastLine)) {
     return lastLine;
   }
   
@@ -186,24 +194,48 @@ Output ONLY valid JSON, no additional text.`;
     try {
       // Try to extract JSON from response (might have markdown code blocks)
       let jsonStr = message.trim();
+      
+      // Remove markdown code blocks
       if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }
-      return JSON.parse(jsonStr);
+      
+      // Try to find JSON object in the response
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      
+      const parsed = JSON.parse(jsonStr);
+      
+      // Ensure all required fields exist
+      return {
+        legitimacy: parsed.legitimacy || 'Analysis unavailable',
+        pricing_analysis: parsed.pricing_analysis || 'Analysis unavailable',
+        time_estimate: parsed.time_estimate || 'Unable to estimate',
+        price_client_country: parsed.price_client_country || 'Unable to estimate',
+        price_20_per_hour: parsed.price_20_per_hour || 'Unable to estimate'
+      };
     } catch (parseErr) {
+      console.error('Failed to parse analysis JSON:', parseErr);
+      console.error('Raw message:', message);
       // Fallback if JSON parsing fails
       return {
-        legitimacy: message.substring(0, 200),
-        pricing_analysis: 'Analysis unavailable',
+        legitimacy: message.substring(0, 300) || 'Analysis unavailable - parsing error',
+        pricing_analysis: 'Analysis unavailable - parsing error',
         time_estimate: 'Unable to estimate',
         price_client_country: 'Unable to estimate',
         price_20_per_hour: 'Unable to estimate'
       };
     }
   } catch (error) {
+    console.error('Error in analyzeProject:', error);
+    if (error.response) {
+      console.error('API Error Response:', error.response.status, error.response.data);
+    }
     return {
-      legitimacy: `Analysis failed: ${error.message}`,
-      pricing_analysis: 'Analysis unavailable',
+      legitimacy: `Analysis failed: ${error.message || 'Unknown error'}`,
+      pricing_analysis: 'Analysis unavailable due to API error',
       time_estimate: 'Unable to estimate',
       price_client_country: 'Unable to estimate',
       price_20_per_hour: 'Unable to estimate'
@@ -315,39 +347,68 @@ app.post('/generate', async (req, res, next) => {
     if (!jobDescription || !jobDescription.trim()) {
       return res.status(400).json({ detail: 'Job description is required.' });
     }
+    
+    console.log('Generating proposals for job description...');
     const proposals = await loadProposals();
+    console.log(`Loaded ${proposals.length} proposals`);
+    
     if (proposals.length < 3) {
       return res.status(400).json({ detail: 'At least 3 sample proposals are required.' });
     }
 
     // Extract country and analyze project
+    console.log('Extracting country...');
     const country = extractCountry(jobDescription);
+    console.log(`Extracted country: ${country}`);
+    
+    console.log('Analyzing project...');
     const analysis = await analyzeProject(jobDescription, country);
+    console.log('Analysis complete');
 
     // Get top three proposals
+    console.log('Selecting top three proposals...');
     const topThree = aiSelectTopThree(jobDescription, proposals);
+    if (topThree.length < 3) {
+      return res.status(500).json({ detail: 'Failed to select 3 proposals.' });
+    }
     const [sampleA, sampleB, sampleC] = topThree;
+    console.log('Top three proposals selected');
 
     // Generate all three proposals
+    console.log('Generating proposals with DeepSeek...');
     const [deepseekA, deepseekB, deepseekC] = await Promise.all([
       generateWithDeepseek(jobDescription, sampleA),
       generateWithDeepseek(jobDescription, sampleB),
       generateWithDeepseek(jobDescription, sampleC)
     ]);
+    console.log('All proposals generated');
+
+    // Validate generated proposals
+    if (!deepseekA || !deepseekB || !deepseekC) {
+      return res.status(500).json({ 
+        detail: 'Failed to generate all proposals. Please check API key and try again.' 
+      });
+    }
 
     // Rank proposals to find the best one (using similarity to job description)
+    console.log('Ranking proposals...');
     const proposalsWithScores = [
       { text: deepseekA, sample: sampleA, index: 0 },
       { text: deepseekB, sample: sampleB, index: 1 },
       { text: deepseekC, sample: sampleC, index: 2 }
     ].map((item) => {
-      const tfidf = new natural.TfIdf();
-      tfidf.addDocument(jobDescription);
-      tfidf.addDocument(item.text);
-      const jobVector = listTermsAsVector(tfidf, 0);
-      const propVector = listTermsAsVector(tfidf, 1);
-      const score = cosineSimilarity(jobVector, propVector);
-      return { ...item, score };
+      try {
+        const tfidf = new natural.TfIdf();
+        tfidf.addDocument(jobDescription);
+        tfidf.addDocument(item.text);
+        const jobVector = listTermsAsVector(tfidf, 0);
+        const propVector = listTermsAsVector(tfidf, 1);
+        const score = cosineSimilarity(jobVector, propVector);
+        return { ...item, score };
+      } catch (err) {
+        console.error('Error calculating score:', err);
+        return { ...item, score: 0 };
+      }
     });
 
     // Sort by score (highest first) - best proposal is first
@@ -355,6 +416,11 @@ app.post('/generate', async (req, res, next) => {
     const bestProposal = proposalsWithScores[0];
     const otherProposals = proposalsWithScores.slice(1);
 
+    if (!bestProposal || otherProposals.length < 2) {
+      return res.status(500).json({ detail: 'Failed to rank proposals.' });
+    }
+
+    console.log('Sending response...');
     res.json({
       analysis: {
         country,
@@ -375,6 +441,7 @@ app.post('/generate', async (req, res, next) => {
       matched_samples: [sampleA, sampleB, sampleC]
     });
   } catch (err) {
+    console.error('Error in /generate endpoint:', err);
     next(err);
   }
 });
