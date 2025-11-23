@@ -142,7 +142,7 @@ async function analyzeProject(jobDesc, country) {
       legitimacy: 'Unable to analyze (API key not set)',
       pricing_analysis: 'Unable to analyze (API key not set)',
       time_estimate: 'Unable to estimate',
-      price_client_country: 'Unable to estimate',
+      price_low_cost: 'Unable to estimate',
       price_20_per_hour: 'Unable to estimate'
     };
   }
@@ -159,9 +159,9 @@ CLIENT COUNTRY: ${country}
 Please provide a comprehensive analysis in the following JSON format:
 {
   "legitimacy": "Brief assessment of whether this project appears legitimate or potentially fraudulent based on typical red flags (unrealistic budget, vague requirements, suspicious payment terms, etc.). Consider the client's country context.",
-  "pricing_analysis": "Analysis of whether the project budget (if mentioned) is realistic from the client's country perspective. Consider average developer rates and project costs in that country, but convert and present all amounts in USD.",
+  "pricing_analysis": "Analysis of whether the project budget (if mentioned) is realistic. Consider typical market rates for similar projects.",
   "time_estimate": "Estimated time to complete this project as a senior expert developer (e.g., '2-3 weeks', '1-2 months'). Be realistic and consider all aspects mentioned.",
-  "price_client_country": "Estimated project cost converted to USD from the client's country perspective (consider local market rates for senior developers in ${country}, then convert to USD). Format as USD range (e.g., '$1,500 - $3,000 USD'). Always use USD currency.",
+  "price_low_cost": "Estimated low-cost budget for this project in USD. This should represent a competitive, budget-friendly estimate while maintaining quality. Format as USD range (e.g., '$1,500 - $3,000 USD'). Always use USD currency.",
   "price_20_per_hour": "Estimated project cost at $20/hour rate in USD. Calculate based on the time estimate. Format as USD range (e.g., '$800 - $1,200 USD'). Always use USD currency."
 }
 
@@ -213,7 +213,7 @@ Output ONLY valid JSON, no additional text.`;
         legitimacy: parsed.legitimacy || 'Analysis unavailable',
         pricing_analysis: parsed.pricing_analysis || 'Analysis unavailable',
         time_estimate: parsed.time_estimate || 'Unable to estimate',
-        price_client_country: parsed.price_client_country || 'Unable to estimate',
+        price_low_cost: parsed.price_low_cost || 'Unable to estimate',
         price_20_per_hour: parsed.price_20_per_hour || 'Unable to estimate'
       };
     } catch (parseErr) {
@@ -224,7 +224,7 @@ Output ONLY valid JSON, no additional text.`;
         legitimacy: message.substring(0, 300) || 'Analysis unavailable - parsing error',
         pricing_analysis: 'Analysis unavailable - parsing error',
         time_estimate: 'Unable to estimate',
-        price_client_country: 'Unable to estimate',
+        price_low_cost: 'Unable to estimate',
         price_20_per_hour: 'Unable to estimate'
       };
     }
@@ -237,7 +237,7 @@ Output ONLY valid JSON, no additional text.`;
       legitimacy: `Analysis failed: ${error.message || 'Unknown error'}`,
       pricing_analysis: 'Analysis unavailable due to API error',
       time_estimate: 'Unable to estimate',
-      price_client_country: 'Unable to estimate',
+      price_low_cost: 'Unable to estimate',
       price_20_per_hour: 'Unable to estimate'
     };
   }

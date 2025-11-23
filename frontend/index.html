@@ -39,7 +39,7 @@
             <b>Time Estimate:</b> <span id="analysis-time"></span>
           </div>
           <div style="margin-bottom: 16px;">
-            <b>Estimated Cost in USD (Client Country Perspective):</b> <span id="analysis-price-client"></span>
+            <b>Estimated Low-Cost Budget in USD:</b> <span id="analysis-price-low-cost"></span>
           </div>
           <div>
             <b>Estimated Cost in USD ($20/hour):</b> <span id="analysis-price-20"></span>
@@ -122,7 +122,7 @@ async function generate() {
     document.getElementById('analysis-legitimacy').textContent = analysis.legitimacy || 'Analysis not available';
     document.getElementById('analysis-pricing').textContent = analysis.pricing_analysis || 'Analysis not available';
     document.getElementById('analysis-time').textContent = analysis.time_estimate || 'Not available';
-    document.getElementById('analysis-price-client').textContent = analysis.price_client_country || 'Not available';
+    document.getElementById('analysis-price-low-cost').textContent = analysis.price_low_cost || 'Not available';
     document.getElementById('analysis-price-20').textContent = analysis.price_20_per_hour || 'Not available';
     
     // Display best proposal
